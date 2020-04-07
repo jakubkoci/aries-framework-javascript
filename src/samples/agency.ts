@@ -1,4 +1,5 @@
 import express, { Express } from 'express';
+import socketio, { Socket } from 'socket.io';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import config from './config';
@@ -6,6 +7,8 @@ import logger from '../lib/logger';
 import { Agent, InboundTransporter, OutboundTransporter, encodeInvitationToUrl } from '../lib';
 import { OutboundPackage } from '../lib/types';
 import indy from 'indy-sdk';
+
+const PORT = config.port;
 
 class HttpInboundTransporter implements InboundTransporter {
   app: Express;
@@ -21,6 +24,72 @@ class HttpInboundTransporter implements InboundTransporter {
       await agent.receiveMessage(packedMessage);
       res.status(200).end();
     });
+  }
+}
+
+class WebSocketInboundTransporter implements InboundTransporter {
+  app: Express;
+
+  constructor(app: Express) {
+    this.app = app;
+  }
+
+  start(agent: Agent) {
+    const http = require('http').Server(this.app);
+    const io = socketio(http);
+
+    io.on('connection', socket => {
+      logger.log('a user connected - inbound');
+
+      socket.on('message', (from, msg) => {
+        logger.log('I received a private message by ', from, ' saying ', msg);
+      });
+
+      socket.on('disconnect', () => {
+        logger.log('user disconnected');
+      });
+    });
+
+    this.app.post('/msg', async (req, res) => {
+      const message = req.body;
+      const packedMessage = JSON.parse(message);
+      await agent.receiveMessage(packedMessage);
+      res.status(200).end();
+    });
+
+    http.listen(PORT, async () => {
+      // await agent.init();
+      // this.start(agent);
+      logger.log(`Application started on port ${PORT}`);
+    });
+  }
+}
+
+class WebSocketOutboundTransporter implements OutboundTransporter {
+  socket: Socket | undefined;
+  constructor(app: Express) {
+    const http = require('http').Server(app);
+    const io = socketio(http);
+
+    io.on('connection', socket => {
+      logger.log('a user connected - outbound');
+
+      this.socket = socket;
+
+      socket.on('message', (from, msg) => {
+        logger.log('I received a private message by ', from, ' saying ', msg);
+      });
+
+      socket.on('disconnect', () => {
+        logger.log('user disconnected');
+      });
+    });
+  }
+
+  async sendMessage(outboundPackage: OutboundPackage) {
+    if (this.socket) {
+      this.socket.emit('message', { data: 'emit from server' });
+    }
   }
 }
 
@@ -55,7 +124,6 @@ class StorageOutboundTransporter implements OutboundTransporter {
   }
 }
 
-const PORT = config.port;
 const app = express();
 
 app.use(cors());
@@ -63,7 +131,7 @@ app.use(bodyParser.text());
 app.set('json spaces', 2);
 
 const messageSender = new StorageOutboundTransporter();
-const messageReceiver = new HttpInboundTransporter(app);
+const messageReceiver = new WebSocketInboundTransporter(app);
 const agent = new Agent(config, messageReceiver, messageSender, indy);
 
 app.get('/', async (req, res) => {
@@ -114,8 +182,10 @@ app.get('/api/messages', async (req, res) => {
   res.send(messageSender.messages);
 });
 
-app.listen(PORT, async () => {
-  await agent.init();
-  messageReceiver.start(agent);
-  logger.log(`Application started on port ${PORT}`);
-});
+// app.listen(PORT, async () => {
+//   await agent.init();
+//   messageReceiver.start(agent);
+//   logger.log(`Application started on port ${PORT}`);
+// });
+
+agent.init();
