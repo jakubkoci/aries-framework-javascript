@@ -14,7 +14,7 @@ class HttpInboundTransporter implements InboundTransporter {
     this.app = app;
   }
 
-  public start(agent: Agent) {
+  public async start(agent: Agent) {
     this.app.post('/msg', async (req, res) => {
       const message = req.body;
       const packedMessage = JSON.parse(message);
@@ -29,6 +29,13 @@ class HttpInboundTransporter implements InboundTransporter {
 }
 
 class StorageOutboundTransporter implements OutboundTransporter {
+  public start(agent: Agent): Promise<void> {
+    // throw new Error('Method not implemented.');
+    return Promise.resolve();
+  }
+  public sendAndReceiveMessage(outboundPackage: OutboundPackage): Promise<any> {
+    throw new Error('Method not implemented.');
+  }
   public messages: { [key: string]: any } = {};
   private messageRepository: MessageRepository;
 

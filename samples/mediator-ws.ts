@@ -19,7 +19,7 @@ class WsInboundTransporter implements InboundTransporter {
     this.app = app;
   }
 
-  public start(agent: Agent): void {
+  public async start(agent: Agent): Promise<void> {
     // websocket transport
     this.io.on('connection', (socket: any) => {
       logger.debug('Socket connected.');
@@ -53,6 +53,12 @@ class WsInboundTransporter implements InboundTransporter {
 }
 
 class WsOutboundTransporter implements OutboundTransporter {
+  public async start(agent: Agent): Promise<void> {
+    // throw new Error('Method not implemented.');
+  }
+  public sendAndReceiveMessage(outboundPackage: OutboundPackage): Promise<any> {
+    throw new Error('Method not implemented.');
+  }
   public messages: { [key: string]: any } = {};
   private messageRepository: MessageRepository;
 

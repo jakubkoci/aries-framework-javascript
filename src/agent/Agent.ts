@@ -57,6 +57,7 @@ export class Agent {
   protected proofRepository: Repository<ProofRecord>;
 
   public inboundTransporter: InboundTransporter;
+  public outboundTransporter: OutboundTransporter;
 
   public connections!: ConnectionsModule;
   public proofs!: ProofsModule;
@@ -88,6 +89,7 @@ export class Agent {
     this.messageSender = new MessageSender(envelopeService, this.transportService, outboundTransporter);
     this.dispatcher = new Dispatcher(this.messageSender);
     this.inboundTransporter = inboundTransporter;
+    this.outboundTransporter = outboundTransporter;
 
     const storageService = new IndyStorageService(this.wallet);
     this.basicMessageRepository = new Repository<BasicMessageRecord>(BasicMessageRecord, storageService);
@@ -141,7 +143,8 @@ export class Agent {
       });
     }
 
-    return this.inboundTransporter.start(this);
+    await this.outboundTransporter.start(this);
+    await this.inboundTransporter.start(this);
   }
 
   public get publicDid() {

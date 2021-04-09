@@ -7,6 +7,9 @@ import {
   ConnectionState,
   ConnectionInvitationMessage,
   ConnectionResponseMessage,
+  ConnectionRecord,
+  ConnectionStateChangedEvent,
+  ConnectionEventType,
 } from '../connections';
 import { BatchMessage } from './messages';
 import type { Verkey } from 'indy-sdk';
@@ -65,13 +68,14 @@ export class RoutingModule {
         message: connectionRequest,
         connectionRecord: connectionRecord,
       } = await this.connectionService.createRequest(connection.id);
-      const connectionResponse = await this.messageSender.sendAndReceiveMessage(
-        createOutboundMessage(connectionRecord, connectionRequest, connectionRecord.invitation),
-        ConnectionResponseMessage
+      await this.messageSender.sendMessageWithReturnRoute(
+        createOutboundMessage(connectionRecord, connectionRequest, connectionRecord.invitation)
       );
-      await this.connectionService.processResponse(connectionResponse);
-      const { message: trustPing } = await this.connectionService.createTrustPing(connectionRecord.id);
-      await this.messageSender.sendMessage(createOutboundMessage(connectionRecord, trustPing));
+      // await this.connectionService.processResponse(connectionResponse);
+      // const { message: trustPing } = await this.connectionService.createTrustPing(connectionRecord.id);
+      // await this.messageSender.sendMessage(createOutboundMessage(connectionRecord, trustPing));
+      this.logger.debug('waiting for connection');
+      await this.returnWhenIsConnected(connectionRecord.id);
 
       const provisioningProps = {
         mediatorConnectionId: connectionRecord.id,
@@ -124,6 +128,26 @@ export class RoutingModule {
     dispatcher.registerHandler(new KeylistUpdateHandler(this.providerRoutingService));
     dispatcher.registerHandler(new ForwardHandler(this.providerRoutingService));
     dispatcher.registerHandler(new MessagePickupHandler(this.messagePickupService));
+  }
+
+  private async returnWhenIsConnected(connectionId: string): Promise<ConnectionRecord> {
+    const isConnected = (connection: ConnectionRecord) => {
+      return connection.id === connectionId && connection.state === ConnectionState.Complete;
+    };
+
+    const connection = await this.connectionService.find(connectionId);
+    if (connection && isConnected(connection)) return connection;
+
+    return new Promise(resolve => {
+      const listener = ({ connectionRecord: connectionRecord }: ConnectionStateChangedEvent) => {
+        if (isConnected(connectionRecord)) {
+          this.connectionService.off(ConnectionEventType.StateChanged, listener);
+          resolve(connectionRecord);
+        }
+      };
+
+      this.connectionService.on(ConnectionEventType.StateChanged, listener);
+    });
   }
 }
 

@@ -38,6 +38,18 @@ class MessageSender {
     await this.outboundTransporter.sendMessage(outboundPackage, false);
   }
 
+  public async sendMessageWithReturnRoute(outboundMessage: OutboundMessage): Promise<void> {
+    outboundMessage.payload.setReturnRouting(ReturnRouteTypes.all);
+    const outboundPackage = await this.envelopeService.packMessage(outboundMessage);
+    const transport = this.transportService.getTransport(outboundMessage.connection.id);
+    if (transport) {
+      outboundPackage.transport = transport;
+    } else {
+      outboundPackage.transport = new HttpTransport(outboundMessage.endpoint);
+    }
+    await this.outboundTransporter.sendMessage(outboundPackage, true);
+  }
+
   public async sendAndReceiveMessage<T extends AgentMessage>(
     outboundMessage: OutboundMessage,
     ReceivedMessageClass: Constructor<T>
@@ -51,7 +63,7 @@ class MessageSender {
     } else {
       outboundPackage.transport = new HttpTransport(outboundMessage.endpoint);
     }
-    const inboundPackedMessage = await this.outboundTransporter.sendMessage(outboundPackage, true);
+    const inboundPackedMessage = await this.outboundTransporter.sendAndReceiveMessage(outboundPackage);
     const inboundUnpackedMessage = await this.envelopeService.unpackMessage(inboundPackedMessage);
 
     const message = JsonTransformer.fromJSON(inboundUnpackedMessage.message, ReceivedMessageClass);

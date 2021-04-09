@@ -3,7 +3,7 @@ import type { SchemaId } from 'indy-sdk';
 import { Agent, InboundTransporter, OutboundTransporter } from '..';
 import { DID_IDENTIFIER_REGEX, VERKEY_REGEX, isFullVerkey, isAbbreviatedVerkey } from '../utils/did';
 import { genesisPath, sleep } from './helpers';
-import { InitConfig } from '../types';
+import { InitConfig, OutboundPackage } from '../types';
 import testLogger from './logger';
 
 const faberConfig: InitConfig = {
@@ -136,12 +136,18 @@ describe('ledger', () => {
 });
 
 class DummyInboundTransporter implements InboundTransporter {
-  public start() {
+  public async start() {
     testLogger.test('Starting agent...');
   }
 }
 
 class DummyOutboundTransporter implements OutboundTransporter {
+  public async start(agent: Agent) {
+    // throw new Error('Method not implemented.');
+  }
+  public sendAndReceiveMessage(outboundPackage: OutboundPackage): Promise<any> {
+    throw new Error('Method not implemented.');
+  }
   public async sendMessage() {
     testLogger.test('Sending message...');
   }

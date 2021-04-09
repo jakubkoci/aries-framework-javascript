@@ -3,7 +3,10 @@ import { OutboundPackage, InitConfig } from '../../src/types';
 import { get, post } from '../http';
 import { sleep, toBeConnectedWith, waitForBasicMessage } from '../../src/__tests__/helpers';
 import indy from 'indy-sdk';
-import testLogger from '../../src/__tests__/logger';
+// import testLogger from '../../src/__tests__/logger';
+import { ConsoleLogger, LogLevel } from '../../src/logger';
+
+const testLogger = new ConsoleLogger(LogLevel.test);
 
 expect.extend({ toBeConnectedWith });
 
@@ -69,6 +72,8 @@ describe('with mediator via http', () => {
     const mediatorConnectionAtAliceMediator = JSON.parse(
       await get(`${aliceAgent.getMediatorUrl()}/api/connections/${aliceKeyAtAliceMediator}`)
     );
+    testLogger.debug(`get endpoint`);
+    testLogger.debug(`${bobAgent.getMediatorUrl()}/api/connections/${bobKeyAtBobMediator}`);
     const mediatorConnectionAtBobMediator = JSON.parse(
       await get(`${bobAgent.getMediatorUrl()}/api/connections/${bobKeyAtBobMediator}`)
     );
@@ -153,7 +158,38 @@ class PollingInboundTransporter implements InboundTransporter {
 }
 
 class HttpOutboundTransporter implements OutboundTransporter {
+  private agent?: Agent;
+
+  public async start(agent: Agent) {
+    this.agent = agent;
+  }
+
   public async sendMessage(outboundPackage: OutboundPackage, receiveReply: boolean) {
+    if (!this.agent) {
+      throw new Error('Outbound transporter has not been properly initialized with agent instance.');
+    }
+
+    const { payload, endpoint } = outboundPackage;
+
+    if (!endpoint) {
+      throw new Error(`Missing endpoint. I don't know how and where to send the message.`);
+    }
+
+    testLogger.test(`Sending outbound message to connection ${outboundPackage.connection.id}`, outboundPackage.payload);
+    testLogger.test(`Receive reply ${receiveReply}`);
+
+    if (receiveReply) {
+      const response = await post(`${endpoint}`, JSON.stringify(payload));
+      const wireMessage = JSON.parse(response);
+      testLogger.test('received response', wireMessage);
+      this.agent.receiveMessage(wireMessage);
+      // return wireMessage;
+    } else {
+      await post(`${endpoint}`, JSON.stringify(payload));
+    }
+  }
+
+  public async sendAndReceiveMessage(outboundPackage: OutboundPackage) {
     const { payload, endpoint } = outboundPackage;
 
     if (!endpoint) {
@@ -162,13 +198,9 @@ class HttpOutboundTransporter implements OutboundTransporter {
 
     testLogger.test(`Sending outbound message to connection ${outboundPackage.connection.id}`, outboundPackage.payload);
 
-    if (receiveReply) {
-      const response = await post(`${endpoint}`, JSON.stringify(payload));
-      const wireMessage = JSON.parse(response);
-      testLogger.test('received response', wireMessage);
-      return wireMessage;
-    } else {
-      await post(`${endpoint}`, JSON.stringify(payload));
-    }
+    const response = await post(`${endpoint}`, JSON.stringify(payload));
+    const wireMessage = JSON.parse(response);
+    testLogger.test('received response', wireMessage);
+    return wireMessage;
   }
 }

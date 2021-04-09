@@ -115,7 +115,7 @@ export class SubjectInboundTransporter implements InboundTransporter {
     this.subject = subject;
   }
 
-  public start(agent: Agent) {
+  public async start(agent: Agent) {
     this.subscribe(agent, this.subject);
   }
 
@@ -127,6 +127,12 @@ export class SubjectInboundTransporter implements InboundTransporter {
 }
 
 export class SubjectOutboundTransporter implements OutboundTransporter {
+  public async start(agent: Agent): Promise<void> {
+    // throw new Error('Method not implemented.');
+  }
+  public sendAndReceiveMessage(outboundPackage: OutboundPackage): Promise<any> {
+    throw new Error('Method not implemented.');
+  }
   private subject: Subject<WireMessage>;
 
   public constructor(subject: Subject<WireMessage>) {
